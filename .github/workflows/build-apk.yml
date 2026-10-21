@@ -30,7 +30,7 @@ jobs:
           if [ -d "RaisaAI" ]; then
             cd RaisaAI
           fi
-          # gradlew এর পরিবর্তে সরাসরি গিটহাবের গ্র্যাডল কমান্ড ব্যবহার করা হলো
+
           gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
