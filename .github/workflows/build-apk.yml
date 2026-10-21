@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # এটি রাখলে GitHub ওয়েবসাইট থেকে বাটন চেপেও বিল্ড চালু করা যায়
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,18 +21,22 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
-      - name: Build with Gradle (Debug APK)
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Debug APK
+        run: |
+          if [ -d "RaisaAI" ]; then
+            cd RaisaAI
+          fi
+          gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: RaisaAI-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: "**/app/build/outputs/apk/debug/*.apk"
           retention-days: 7
-          
