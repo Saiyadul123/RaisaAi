@@ -22,24 +22,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Gradle & Generate Wrapper
-        run: |
-          sudo apt-get update && sudo apt-get install -y gradle
-          if [ -d "RaisaAI" ]; then
-            cd RaisaAI
-          fi
-          # যদি gradlew ফাইল না থাকে, তবে স্বয়ংক্রিয়ভাবে তৈরি করে নেবে
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper --gradle-version 8.7
-          fi
-          chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Debug APK
+      - name: Build Debug APK with Gradle
         run: |
           if [ -d "RaisaAI" ]; then
             cd RaisaAI
           fi
-          ./gradlew assembleDebug --stacktrace
+          # gradlew এর পরিবর্তে সরাসরি গিটহাবের গ্র্যাডল কমান্ড ব্যবহার করা হলো
+          gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
