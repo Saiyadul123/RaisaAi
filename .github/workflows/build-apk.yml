@@ -22,12 +22,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle Environment
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
+      - name: Build Android App
         run: |
           # যদি RaisaAI ফোল্ডারের ভেতরে প্রজেক্ট থাকে, তবে ফাইলগুলোকে রুটে নিয়ে আসা
           if [ -d "RaisaAI" ]; then
@@ -36,14 +36,7 @@ jobs:
             rmdir RaisaAI
           fi
 
-          # গ্র্যাডল র‍্যাপার না থাকলে গিটহাবের মাধ্যমে তৈরি করা
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper --gradle-version 8.7
-          fi
-          
-          chmod +x gradlew
-
-          # সরাসরি ডিবাগ এপিকে বিল্ড করা
+          # setup-gradle অ্যাকশন স্বয়ংক্রিয়ভাবে গ্র্যাডল ও বিল্ড হ্যান্ডেল করবে
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload Debug APK
@@ -52,3 +45,4 @@ jobs:
           name: RaisaAI-Debug-APK
           path: "app/build/outputs/apk/debug/*.apk"
           retention-days: 7
+          
