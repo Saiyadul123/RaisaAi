@@ -24,29 +24,30 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Locate gradlew and Build APK
+      - name: Locate gradlew, Fix Bugs, and Build APK
         run: |
-          # 1. If a zip file was uploaded directly, extract it first
+          # 1. Extract zip if uploaded directly
           if [ ! -f "gradlew" ] && [ ! -f "RaisaAI/gradlew" ]; then
             ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
             if [ -n "$ZIP_FILE" ]; then
-              echo "Extracting $ZIP_FILE..."
-              unzip -q "$ZIP_FILE"
+              unzip -o -q "$ZIP_FILE"
             fi
           fi
 
-          # 2. Automatically find where gradlew is located
+          # 2. Find project directory
           GRADLEW_PATH=$(find . -maxdepth 3 -name "gradlew" | head -n 1)
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "ERROR: gradlew not found anywhere in the repository!"
-            ls -la
-            exit 1
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          cd "$PROJECT_DIR"
+
+          # 3. Fix Bug #1: Remove broken adaptive icon XMLs (fallback to your valid PNGs in mipmap-*)
+          rm -rf app/src/main/res/mipmap-anydpi-v26
+
+          # 4. Fix Bug #2: Add missing seedHistoryIfEmpty method to ChatRepository interface
+          if ! grep -q "seedHistoryIfEmpty" app/src/main/java/com/raisa/ai/domain/repository/ChatRepository.kt; then
+            sed -i 's/suspend fun clearAll()/suspend fun clearAll()\n    suspend fun seedHistoryIfEmpty(seed: List<HistoryEntry>)/' app/src/main/java/com/raisa/ai/domain/repository/ChatRepository.kt
           fi
 
-          # 3. Enter the project directory and build
-          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-          echo "Found project in: $PROJECT_DIR"
-          cd "$PROJECT_DIR"
+          # 5. Build the Debug APK
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
@@ -55,3 +56,4 @@ jobs:
         with:
           name: app-debug
           path: "**/app/build/outputs/apk/debug/*.apk"
+          
