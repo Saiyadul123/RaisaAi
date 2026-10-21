@@ -22,15 +22,16 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle (Version 8.7)
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
 
       - name: Build Debug APK with Gradle
         run: |
           if [ -d "RaisaAI" ]; then
             cd RaisaAI
           fi
-
           gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
