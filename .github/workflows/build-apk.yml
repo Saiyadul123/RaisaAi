@@ -1,47 +1,96 @@
-name: Build Android APK
+name: Build debug APK
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches: [main]
   workflow_dispatch:
+
+# Least privilege: the job only needs to read the repository.
+permissions:
+  contents: read
+
+# A newer push cancels an older, still-running build of the same branch.
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: Build Debug APK
-    runs-on: ubuntu-latest
+    name: Assemble debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@v4
 
+      # The project uses AGP 8.7.3, which requires JDK 17 or newer; 17 matches
+      # sourceCompatibility / jvmTarget in app/build.gradle.kts.
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
-      - name: Setup Gradle Environment
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
+      # Refuses to continue if gradle-wrapper.jar is not an official Gradle release.
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
-      - name: Prepare Project and Build APK
+      # Installs nothing itself: it caches ~/.gradle and writes a build summary.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Show build environment
         run: |
-          # যদি RaisaAI ফোল্ডারের ভেতরে প্রজেক্ট থাকে, তবে ফাইলগুলোকে রুটে নিয়ে আসা
-          if [ -d "RaisaAI" ]; then
-            shopt -s dotglob
-            mv RaisaAI/* .
-            rmdir RaisaAI
+          ./gradlew --version
+          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          ls "${ANDROID_HOME:-/nonexistent}/platforms" 2>/dev/null || echo "No preinstalled SDK platforms found"
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace --console=plain
+
+      # Find the APK AGP actually produced instead of trusting a hard-coded path.
+      - name: Locate APK
+        id: apk
+        run: |
+          mapfile -t apks < <(find . -path '*/build/outputs/apk/debug/*.apk' -type f | sort)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error::No debug APK found under */build/outputs/apk/debug/"
+            echo "Contents of build/outputs:"
+            find . -path '*/build/outputs/*' -type f | head -50
+            exit 1
           fi
+          apk="${apks[0]}"
+          echo "path=${apk}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "${apk}" .apk)" >> "$GITHUB_OUTPUT"
+          ls -l "${apk}"
+          {
+            echo "### Debug APK built"
+            echo ""
+            echo "- File: \`${apk}\`"
+            echo "- Size: $(du -h "${apk}" | cut -f1)"
+            echo "- SHA-256: \`$(sha256sum "${apk}" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          # সরাসরি গ্র্যাডল কমান্ডের মাধ্যমে প্রোজেক্ট কম্পাইল ও ডিবাগ এপিকে তৈরি করা
-          gradle assembleDebug --stacktrace
-
-      - name: Upload Debug APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: RaisaAI-Debug-APK
-          path: "app/build/outputs/apk/debug/*.apk"
+          name: ${{ steps.apk.outputs.name }}-${{ github.run_number }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      # Only on failure: HTML/XML reports and test results for debugging.
+      - name: Upload build reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports-${{ github.run_number }}
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
+          if-no-files-found: ignore
           retention-days: 7
